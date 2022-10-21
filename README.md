@@ -19,7 +19,7 @@
    3. make
 
    ```
-3. onnx 转成tensorrt模型  onnx模型看这里[车牌识别](https://github.com/we0091234/Chinese_license_plate_detection_recognition)
+3. onnx 转成tensorrt模型  onnx模型在 onnx_model文件夹   或者自己训练模型看这里[车牌识别](https://github.com/we0091234/Chinese_license_plate_detection_recognition)
 
    ```
    当前在build目录
@@ -33,5 +33,4 @@
    ```
    ./plate_rec ./plate_detect.trt  ./plate_rec.trt ../test_imgs/single_blue.jpg
    ```
-
    结果保存为了out.jpg
