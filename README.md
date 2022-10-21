@@ -1,5 +1,7 @@
 # 车牌识别TensorRT
 
+    环境：tensorrt 8.2
+
 1. 修改CMakeLists.txt  换成你的cuda  tensorrt  以及opencv 路径
 
    ```
