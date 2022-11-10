@@ -40,11 +40,11 @@ const std::vector<std::string> plate_string_yinwen={"#","<beijing>","<hu>","<tia
 
 static const int INPUT_W = 640;
 static const int INPUT_H = 640;
-static const int NUM_CLASSES = 2;  //单层车牌，双层车牌两类
+// static const int NUM_CLASSES = 2;  //单层车牌，双层车牌两类
 
 
-const char* INPUT_BLOB_NAME = "input"; //onnx 输入  名字
-const char* OUTPUT_BLOB_NAME = "output"; //onnx 输出 名字
+// const char* INPUT_BLOB_NAME = "input"; //onnx 输入  名字
+// const char* OUTPUT_BLOB_NAME = "output"; //onnx 输出 名字
 static Logger gLogger;
 
 cv::Mat static_resize(cv::Mat& img,int &top,int &left)  //对应yolov5中的letter_box
@@ -228,8 +228,8 @@ static void generate_yolox_proposals(float *feat_blob, float prob_threshold,
   }
 }
 
-float* blobFromImage(cv::Mat& img){
-    float* blob = new float[img.total()*3];
+float* blobFromImage(cv::Mat& img,float *blob){
+    // float* blob = new float[img.total()*3];
     int channels = 3;
     int img_h = img.rows;
     int img_w = img.cols;
@@ -243,7 +243,7 @@ float* blobFromImage(cv::Mat& img){
                 // blob[c * img_w * img_h + h * img_w + w] =
                 //     (float)img.at<cv::Vec3b>(h, w)[c];
                     blob[k++] =
-                    (float)img.at<cv::Vec3b>(h, w)[2-c]/255.0;
+                    (float)img.at<cv::Vec3b>(h, w)[2-c]/255.0;   //2-c 是因为opencv读取的是BGR 检测模型训练时候用的RGB
             }
         }
     }
@@ -326,70 +326,7 @@ const float color_list[4][3] =
     {0, 255, 255},
 };
 
-static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::string f)
-{
-    static const char* class_names[] = {
-        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-        "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-        "hair drier", "toothbrush"
-    };
 
-    cv::Mat image = bgr.clone();
-
-    for (size_t i = 0; i < objects.size(); i++)
-    {
-        const Object& obj = objects[i];
-
-        // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
-        //         obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
-
-        cv::Scalar color = cv::Scalar(color_list[obj.label][0], color_list[obj.label][1], color_list[obj.label][2]);
-        float c_mean = cv::mean(color)[0];
-        cv::Scalar txt_color;
-        if (c_mean > 0.5){
-            txt_color = cv::Scalar(0, 0, 0);
-        }else{
-            txt_color = cv::Scalar(255, 255, 255);
-        }
-
-        cv::rectangle(image, obj.rect, color * 255, 2);
-
-        char text[256];
-        sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
-
-        int baseLine = 0;
-        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.4, 1, &baseLine);
-
-        cv::Scalar txt_bk_color = color * 0.7 * 255;
-
-        int x = obj.rect.x;
-        int y = obj.rect.y + 1;
-        //int y = obj.rect.y - label_size.height - baseLine;
-        if (y > image.rows)
-            y = image.rows;
-        //if (x + label_size.width > image.cols)
-            //x = image.cols - label_size.width;
-
-        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                      txt_bk_color, -1);
-
-        cv::putText(image, text, cv::Point(x, y + label_size.height),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.4, txt_color, 1);
-    }
-    int pos = f.find_last_of("/");
-    auto substr = f.substr(pos+1);
-    std::string savePath = "/mnt/Gpan/Mydata/pytorchPorject/yoloxNew/newYoloxCpp/result_pic/"+substr;
-    cv::imwrite(savePath, image);
-    // fprintf(stderr, "save vis file\n");
-    // cv::imshow("image", image);
-    // cv::waitKey(0);
-}
 
 
 void doInference(IExecutionContext& context, float* input, float* output, const int output_size, cv::Size input_shape,const char *INPUT_BLOB_NAME,const char *OUTPUT_BLOB_NAME) {
@@ -513,132 +450,176 @@ std::string decode_outputs_pingyin(float *prob,int output_size) //拼音
     return plate;
 }
 
-
-
-int main(int argc, char** argv) {
-    cudaSetDevice(DEVICE);
-    char *trtModelStreamDet{nullptr};
-    char *trtModelStreamRec{nullptr};
-    size_t size{0};
-    size_t size_rec{0};
-    // argv[1]="/mnt/Gu/xiaolei/cplusplus/trt_project/chinese_plate_recoginition/build/plate_detect.trt"; 
-    // argv[2]="/mnt/Gu/xiaolei/cplusplus/trt_project/chinese_plate_recoginition/build/plate_rec.trt";
-    // argv[3]="/mnt/Gu/xiaolei/cplusplus/trt_project/chinese_plate_recoginition/test_imgs/single_blue.jpg";
-    // argv[4]="output.jpg";
-
-    const std::string engine_file_path {argv[1]};  
-    std::ifstream file(engine_file_path, std::ios::binary);
+void readTrtModel(const std::string trtFile,char *&trtModelStream,size_t &size)
+{
+    // size_t size{0};
+    std::ifstream file(trtFile, std::ios::binary);
     if (file.good()) {
         file.seekg(0, file.end);
         size = file.tellg();
         file.seekg(0, file.beg);
-        trtModelStreamDet = new char[size];
-        assert(trtModelStreamDet);
-        file.read(trtModelStreamDet, size);
+        trtModelStream = new char[size];
+        assert(trtModelStream);
+        file.read(trtModelStream, size);
         file.close();
     }
+}
 
-    const std::string engine_file_path_rec {argv[2]};
-    std::ifstream file_rec(engine_file_path_rec, std::ios::binary);
-    if (file_rec.good()) {
-        file_rec.seekg(0, file_rec.end);
-        size_rec = file_rec.tellg();
-        file_rec.seekg(0, file_rec.beg);
-        trtModelStreamRec = new char[size_rec];
-        assert(trtModelStreamRec);
-        file_rec.read(trtModelStreamRec, size_rec);
-        file_rec.close();
+class trtModel
+{
+    public:
+    char *trtModelStream{nullptr};
+    IRuntime *runtime{nullptr};
+    ICudaEngine *engine{nullptr};
+    IExecutionContext *context{nullptr};
+    size_t size{0};
+    int output_size=1;
+    float *prob=nullptr;
+    int OUTPUT_CANDIDATES;
+    std::string input_blob_name;
+    std::string out_blob_name;
+
+    trtModel(const std::string trtModelPath,std::string input_blob_name,std::string out_blob_name)
+    {
+        readTrtModel(trtModelPath,this->trtModelStream,this->size);
+        runtime =createInferRuntime(gLogger);
+        assert(runtime != nullptr);
+        engine = runtime->deserializeCudaEngine(this->trtModelStream, this->size);
+        assert(engine != nullptr); 
+        context = engine->createExecutionContext();
+        assert(context != nullptr);
+        
+        get_output_size();
+        prob = new float[output_size];
+        this->input_blob_name=input_blob_name;
+        this->out_blob_name=out_blob_name;
     }
 
-    //det模型trt初始化
-    IRuntime* runtime_det = createInferRuntime(gLogger);
-    assert(runtime_det != nullptr);
-    ICudaEngine* engine_det = runtime_det->deserializeCudaEngine(trtModelStreamDet, size);
-    assert(engine_det != nullptr); 
-    IExecutionContext* context_det = engine_det->createExecutionContext();
-    assert(context_det != nullptr);
-    delete[] trtModelStreamDet;
+    ~trtModel()
+    {
+        if (!trtModelStream)
+        delete [] trtModelStream;
+        if(!runtime)
+        runtime->destroy();
+        if(!engine)
+        engine->destroy();
+        if(!context)
+        context->destroy();
+        if(!prob)
+        delete [] prob;
+        // std::cout<<"对象销毁成功"<<std::endl;
+    }
+    void get_output_size()
+    {
+        // int out_size=1;
+        auto out_dims = engine->getBindingDimensions(1);
+        OUTPUT_CANDIDATES = out_dims.d[1];
 
-    //rec模型trt初始化
-    IRuntime* runtime_rec = createInferRuntime(gLogger);
-    assert(runtime_rec!= nullptr);
-    ICudaEngine* engine_rec = runtime_rec->deserializeCudaEngine(trtModelStreamRec, size_rec);
-    assert(engine_rec != nullptr); 
-    IExecutionContext* context_rec = engine_rec->createExecutionContext();
-    assert(context_rec != nullptr);
-    delete[] trtModelStreamRec;
-
-    auto out_dims = engine_det->getBindingDimensions(1);
-    auto output_size = 1;
-    int OUTPUT_CANDIDATES = out_dims.d[1];
-
-       for(int j=0;j<out_dims.nbDims;j++) {
-        output_size *= out_dims.d[j];
+        for(int j=0;j<out_dims.nbDims;j++)
+        {
+            output_size *= out_dims.d[j];
+        }
     }
 
+    void doInference( float* input, cv::Size input_shape) 
+    {
+        const char *input_name=input_blob_name.c_str();
+        const char *out_name =out_blob_name.c_str();
+        const ICudaEngine& engine = context->getEngine();
+       
+        // Pointers to input and output device buffers to pass to engine.
+        // Engine requires exactly IEngine::getNbBindings() number of buffers.
+        assert(engine.getNbBindings() == 2);
+        void* buffers[2];
 
-    auto out_dims_rec = engine_rec->getBindingDimensions(1);
-    auto output_size_rec = 1;
-    int OUTPUT_CANDIDATES_REC = out_dims_rec.d[1];
+        // In order to bind the buffers, we need to know the names of the input and output tensors.
+        // Note that indices are guaranteed to be less than IEngine::getNbBindings()
+        const int inputIndex = engine.getBindingIndex(input_name);
 
-    for(int j=0;j<out_dims_rec.nbDims;j++) {
-        output_size_rec *= out_dims_rec.d[j];
-    }
+        assert(engine.getBindingDataType(inputIndex) == nvinfer1::DataType::kFLOAT);
+        const int outputIndex = engine.getBindingIndex(out_name);
+        assert(engine.getBindingDataType(outputIndex) == nvinfer1::DataType::kFLOAT);
+        int mBatchSize = engine.getMaxBatchSize();
 
-    static float* prob = new float[output_size];
+        // Create GPU buffers on device
+        CHECK(cudaMalloc(&buffers[inputIndex], 3 * input_shape.height * input_shape.width * sizeof(float)));
+        CHECK(cudaMalloc(&buffers[outputIndex], output_size*sizeof(float)));
 
-    static float* prob_rec = new float[output_size_rec];
- 
- // 识别模型 参数
-     int plate_rec_input_w = 168;  
-    int plate_rec_input_h = 48;
+        // Create stream
+        cudaStream_t stream;
+        CHECK(cudaStreamCreate(&stream));
+
+        // DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
+        CHECK(cudaMemcpyAsync(buffers[inputIndex], input, 3 * input_shape.height * input_shape.width * sizeof(float), cudaMemcpyHostToDevice, stream));
+        context->enqueue(1, buffers, stream, nullptr);
+        // context.enqueueV2( buffers, stream, nullptr);
+        CHECK(cudaMemcpyAsync(prob, buffers[outputIndex], output_size * sizeof(float), cudaMemcpyDeviceToHost, stream));
+        cudaStreamSynchronize(stream);
+
+        // Release stream and buffers
+        cudaStreamDestroy(stream);
+        CHECK(cudaFree(buffers[inputIndex]));
+        CHECK(cudaFree(buffers[outputIndex]));
+}
+
+};
+
+void pre_pressing(cv::Mat &img,int &top,int &left,float &scale,float *blob_detect)
+{
+      cv::Mat pr_img = static_resize(img,top,left);
+      blob_detect = blobFromImage(pr_img,blob_detect);
+      scale = std::min(INPUT_W / (img.cols*1.0), INPUT_H / (img.rows*1.0));
+}
 
 
-    float mean_value=0.588;
-    float std_value =0.193;
 
-    const char* plate_rec_input_name = "images"; //onnx 输入  名字
-    const char* plate_rec_out_name= "output"; //onnx 输出 名字
+int main(int argc, char** argv) 
+{
+    cudaSetDevice(DEVICE);
 
-//  识别模型 参数
-    
-    cv::Point2f rect[4];
+   //检测模型参数
+    std::string detect_input_name = "input";// 检测 模型 onnx 输入  名字
+    std::string detect_output_name= "output";//检测模型 onnx 输出  名字
+
+  //识别模型参数//
+    std::string rec_input_name = "images"; //识别模型 onnx 输入  名字
+    std::string  rec_out_name= "output"; //识别模型 onnx 输出 名字
+    int plate_rec_input_w = 168,plate_rec_input_h =48;  
+    float mean_value=0.588,std_value=0.193;
     cv::Point2f order_rect[4];
-    cv::Point  point[1][4];
+  //识别模型参数//
 
-    std::string imgPath ="/mnt/Gpan/Mydata/pytorchPorject/Chinese_license_plate_detection_recognition/imgs";
+    trtModel detectModel(argv[1],detect_input_name,detect_output_name);  //初始化检测模型
+    trtModel recModel(argv[2],rec_input_name,rec_out_name);             //初始化识别模型
+
+    float* blob_detect=new float[INPUT_H*INPUT_W*3];
+    float* blob_rec;
+
     std::string input_image_path=argv[3];
     std::vector<std::string> imagList;
     std::vector<std::string>fileType{"jpg","png"};
-    readFileList(const_cast<char *>(imgPath.c_str()),imagList,fileType);
-    double sumTime = 0;
-    // for (auto &input_image_path:imagList) 
-    // {
+    readFileList(const_cast<char *>(argv[3]),imagList,fileType);
+    double pre_pressin_time=0;
+    double forword_sumTime = 0;
+    int index= 0;
+    for (auto &input_image_path:imagList) 
+    {
+        std::cout<<input_image_path<<" ";
         cv::Mat img = cv::imread(input_image_path);
-        int img_w = img.cols;
-        int img_h = img.rows;
-        int top=0;
-        int left= 0;
-        cv::Mat pr_img = static_resize(img,top,left);
-        float* blob_detect;
-        blob_detect = blobFromImage(pr_img);
-        float scale = std::min(INPUT_W / (img.cols*1.0), INPUT_H / (img.rows*1.0));
-
-        //run inference
-        auto start = cv::getTickCount();
-        doInference(*context_det, blob_detect, prob, output_size, pr_img.size(),INPUT_BLOB_NAME,OUTPUT_BLOB_NAME);
-        auto end = cv::getTickCount();
-        sumTime+=double((end-start)/cv::getTickFrequency()*1000);
-        // std::cout << double((end-start)/cv::getTickFrequency()*1000) << "ms" << std::endl;
-
-
+        
+        int top=0,left=0;
+        float scale=0;
+        auto pre_time_b=cv::getTickCount();
+        pre_pressing(img,top,left,scale,blob_detect);  //检测前处理
+        auto pre_time_e=cv::getTickCount();
+        auto time_gap_pre = (pre_time_e-pre_time_b)/cv::getTickFrequency()*1000;
+       if (index)
+       pre_pressin_time+=time_gap_pre;
+        
+        auto time_b = cv::getTickCount();
+        detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
         std::vector<Object> objects;
-    
-        decode_outputs(prob, objects, scale, img_w, img_h,OUTPUT_CANDIDATES,top,left);
-  
-        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-       
-        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+        decode_outputs(detectModel.prob, objects, scale, img.cols, img.rows,detectModel.OUTPUT_CANDIDATES,top,left);
         for (int i = 0; i<objects.size(); i++)
         {
             cv::rectangle(img, objects[i].rect, cv::Scalar(0,255,0), 2);
@@ -657,32 +638,33 @@ int main(int argc, char** argv) {
             cv::resize(roiImg,roiImg,cv::Size(plate_rec_input_w,plate_rec_input_h));
             cv::Mat pr_img =roiImg;
             // std::cout << "blob image" << std::endl;
-            float* blob_rec;
+            
             blob_rec = blobFromImage_plate(pr_img,mean_value,std_value);
-            doInference(*context_rec, blob_rec, prob_rec, output_size_rec, pr_img.size(),plate_rec_input_name,plate_rec_out_name);
-            auto plate_number = decode_outputs(prob_rec,output_size_rec);
-            auto plate_number_pinyin= decode_outputs_pingyin(prob_rec,output_size_rec);
+            recModel.doInference(blob_rec,pr_img.size());
+            // doInference(*recModel.context, blob_rec, prob_rec, output_size_rec, pr_img.size(),plate_rec_input_name,plate_rec_out_name);
+            auto plate_number = decode_outputs(recModel.prob,recModel.output_size);
+            auto plate_number_pinyin= decode_outputs_pingyin(recModel.prob,recModel.output_size);
             
             cv::Point origin; 
             origin.x = objects[i].rect.x;
             origin.y = objects[i].rect.y;
             cv::putText(img, plate_number_pinyin, origin, cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 0), 2, 8, 0);
-            std::cout<<input_image_path<<" "<<plate_number<<std::endl;
-        delete [] blob_rec;
+            std::cout<<plate_number<<" ";
+       
         }
-        delete [] blob_detect;
-    // }
+        auto time_e = cv::getTickCount(); 
+        std::cout<<std::endl;
+       
+       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
+       if (index)
+       forword_sumTime+=time_gap;
+       index+=1;
+    }
 
-   cv::imwrite("out.jpg",img);
- 
-    // destroy the engine
-    // std::cout<<"averageTime:"<<sumTime/imagList.size()<<std::endl;
-    context_det->destroy();
-    engine_det->destroy();
-    runtime_det->destroy();
-
-    context_rec->destroy();
-    engine_rec->destroy();
-    runtime_rec->destroy();
+std::cout<<"forward平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
+std::cout<<"前处理平均时间: "<<pre_pressin_time/(imagList.size()-1)<<" ms"<<std::endl;
+//    cv::imwrite("out.jpg",img);
+  delete [] blob_rec;
+   delete [] blob_detect;
     return 0;
 }

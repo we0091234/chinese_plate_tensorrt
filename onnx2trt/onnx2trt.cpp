@@ -14,6 +14,7 @@
 #include "cuda_runtime_api.h"
 using namespace nvinfer1;
 using namespace std;
+// #define USE_FP16
 static Logger gLogger;
 
 const char* INPUT_BLOB_NAME = "input";
