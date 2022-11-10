@@ -33,6 +33,6 @@
 4. 推理
 
    ```
-   ./plate_rec ./plate_detect.trt  ./plate_rec.trt ../test_imgs/single_blue.jpg
+   ./plate_rec ./plate_detect.trt  ./plate_rec.trt ../test_imgs
    ```
-   结果保存为了out.jpg
+   结果显示在控制台
