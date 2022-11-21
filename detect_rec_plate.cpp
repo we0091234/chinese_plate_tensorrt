@@ -43,8 +43,8 @@ static const int INPUT_H = 640;
 // static const int NUM_CLASSES = 2;  //单层车牌，双层车牌两类
 
 
-// const char* INPUT_BLOB_NAME = "input"; //onnx 输入  名字
-// const char* OUTPUT_BLOB_NAME = "output"; //onnx 输出 名字
+const char* INPUT_BLOB_NAME = "input"; //onnx 输入  名字
+const char* OUTPUT_BLOB_NAME = "output"; //onnx 输出 名字
 static Logger gLogger;
 
 cv::Mat static_resize(cv::Mat& img,int &top,int &left)  //对应yolov5中的letter_box
@@ -613,13 +613,21 @@ int main(int argc, char** argv)
         pre_pressing(img,top,left,scale,blob_detect);  //检测前处理
         auto pre_time_e=cv::getTickCount();
         auto time_gap_pre = (pre_time_e-pre_time_b)/cv::getTickFrequency()*1000;
+        
        if (index)
        pre_pressin_time+=time_gap_pre;
         
         auto time_b = cv::getTickCount();
-        detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
+        // detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
+         doInference(*(detectModel.context), blob_detect, detectModel.prob, detectModel.output_size, cv::Size(INPUT_W,INPUT_H),INPUT_BLOB_NAME,OUTPUT_BLOB_NAME);
+        auto time_e = cv::getTickCount(); 
+       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
+        std::cout<<time_gap<<"ms ";
+       if (index)
+       forword_sumTime+=time_gap;
         std::vector<Object> objects;
         decode_outputs(detectModel.prob, objects, scale, img.cols, img.rows,detectModel.OUTPUT_CANDIDATES,top,left);
+        
         for (int i = 0; i<objects.size(); i++)
         {
             cv::rectangle(img, objects[i].rect, cv::Scalar(0,255,0), 2);
@@ -652,16 +660,15 @@ int main(int argc, char** argv)
             std::cout<<plate_number<<" ";
        
         }
-        auto time_e = cv::getTickCount(); 
-        std::cout<<std::endl;
-       
-       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
-       if (index)
-       forword_sumTime+=time_gap;
+       std::cout<<std::endl;
+    //    auto time_e = cv::getTickCount(); 
+    //    auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
+    //    if (index)
+    //    forword_sumTime+=time_gap;
        index+=1;
     }
 
-std::cout<<"forward平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
+std::cout<<"detect forward平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
 std::cout<<"前处理平均时间: "<<pre_pressin_time/(imagList.size()-1)<<" ms"<<std::endl;
 //    cv::imwrite("out.jpg",img);
   delete [] blob_rec;

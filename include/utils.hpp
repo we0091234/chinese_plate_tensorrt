@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <iostream>
 #include<dirent.h>
-#include <sys/types.h>
+// #include <sys/types.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <opencv2/opencv.hpp>
