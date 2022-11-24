@@ -228,7 +228,7 @@ static void generate_yolox_proposals(float *feat_blob, float prob_threshold,
   }
 }
 
-float* blobFromImage(cv::Mat& img,float *blob){
+void blobFromImage(cv::Mat& img,float *blob){
     // float* blob = new float[img.total()*3];
     int channels = 3;
     int img_h = img.rows;
@@ -247,12 +247,12 @@ float* blobFromImage(cv::Mat& img,float *blob){
             }
         }
     }
-    return blob;
+    // return blob;
 }
 
-float* blobFromImage_plate(cv::Mat& img,float mean_value,float std_value)
+void blobFromImage_plate(cv::Mat& img,float mean_value,float std_value,float *blob)
 {
-    float* blob = new float[img.total()*3];
+    // float* blob = new float[img.total()*3];
     int channels = 3;
     int img_h = img.rows;
     int img_w = img.cols;
@@ -268,7 +268,7 @@ float* blobFromImage_plate(cv::Mat& img,float mean_value,float std_value)
             }
         }
     }
-    return blob;
+    // return blob;
 }
 
 static void decode_outputs(float* prob, std::vector<Object>& objects, float scale, const int img_w, const int img_h,int OUTPUT_CANDIDATES,int top,int left) {
@@ -325,47 +325,6 @@ const float color_list[4][3] =
     {0, 0, 255},
     {0, 255, 255},
 };
-
-
-
-
-void doInference(IExecutionContext& context, float* input, float* output, const int output_size, cv::Size input_shape,const char *INPUT_BLOB_NAME,const char *OUTPUT_BLOB_NAME) {
-    const ICudaEngine& engine = context.getEngine();
-
-    // Pointers to input and output device buffers to pass to engine.
-    // Engine requires exactly IEngine::getNbBindings() number of buffers.
-    assert(engine.getNbBindings() == 2);
-    void* buffers[2];
-
-    // In order to bind the buffers, we need to know the names of the input and output tensors.
-    // Note that indices are guaranteed to be less than IEngine::getNbBindings()
-    const int inputIndex = engine.getBindingIndex(INPUT_BLOB_NAME);
-
-    assert(engine.getBindingDataType(inputIndex) == nvinfer1::DataType::kFLOAT);
-    const int outputIndex = engine.getBindingIndex(OUTPUT_BLOB_NAME);
-    assert(engine.getBindingDataType(outputIndex) == nvinfer1::DataType::kFLOAT);
-    int mBatchSize = engine.getMaxBatchSize();
-
-    // Create GPU buffers on device
-    CHECK(cudaMalloc(&buffers[inputIndex], 3 * input_shape.height * input_shape.width * sizeof(float)));
-    CHECK(cudaMalloc(&buffers[outputIndex], output_size*sizeof(float)));
-
-    // Create stream
-    cudaStream_t stream;
-    CHECK(cudaStreamCreate(&stream));
-
-    // DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
-    CHECK(cudaMemcpyAsync(buffers[inputIndex], input, 3 * input_shape.height * input_shape.width * sizeof(float), cudaMemcpyHostToDevice, stream));
-    context.enqueue(1, buffers, stream, nullptr);
-    // context.enqueueV2( buffers, stream, nullptr);
-    CHECK(cudaMemcpyAsync(output, buffers[outputIndex], output_size * sizeof(float), cudaMemcpyDeviceToHost, stream));
-    cudaStreamSynchronize(stream);
-
-    // Release stream and buffers
-    cudaStreamDestroy(stream);
-    CHECK(cudaFree(buffers[inputIndex]));
-    CHECK(cudaFree(buffers[outputIndex]));
-}
 
 float getNorm2(float x,float y)
 {
@@ -567,10 +526,62 @@ class trtModel
 void pre_pressing(cv::Mat &img,int &top,int &left,float &scale,float *blob_detect)
 {
       cv::Mat pr_img = static_resize(img,top,left);
-      blob_detect = blobFromImage(pr_img,blob_detect);
+      blobFromImage(pr_img,blob_detect);
       scale = std::min(INPUT_W / (img.cols*1.0), INPUT_H / (img.rows*1.0));
 }
 
+
+void  detect(trtModel &detectModel,cv::Mat &img,float *blob_detect,int index, std::vector<Object> &objects)  //输出检测结果
+ {
+      int top=0,left=0;
+        float scale=0;
+        auto pre_time_b=cv::getTickCount();
+        pre_pressing(img,top,left,scale,blob_detect);  //检测前处理
+        auto pre_time_e=cv::getTickCount();
+        auto time_gap_pre = (pre_time_e-pre_time_b)/cv::getTickFrequency()*1000;
+        
+    //    if (index)
+    //    pre_pressin_time+=time_gap_pre;
+        
+        auto time_b = cv::getTickCount();
+        detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
+        auto time_e = cv::getTickCount(); 
+       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
+        std::cout<<time_gap<<"ms ";
+    //    if (index)
+    //    forword_sumTime+=time_gap;
+       
+        decode_outputs(detectModel.prob, objects, scale, img.cols, img.rows,detectModel.OUTPUT_CANDIDATES,top,left);
+    //  return objects;
+ }
+
+ std::string get_plate_result(Object &object,cv::Mat &img,cv::Point2f order_rect[],trtModel &recModel,float *blob_rec,cv::Size size,float mean_value,float std_value)
+ {
+ 
+            for (int j= 0; j<4; j++)
+            {
+            cv::Scalar color = cv::Scalar(color_list[j][0], color_list[j][1], color_list[j][2]);
+            cv::circle(img,cv::Point(object.landmarks[2*j], object.landmarks[2*j+1]),5,color,-1);
+            order_rect[j]=cv::Point(object.landmarks[2*j],object.landmarks[2*j+1]);
+            }
+            
+           cv::Mat roiImg = getTransForm(img,order_rect);  //根据关键点进行透视变换
+           int label = object.label;
+           if (label)             //判断是否双层车牌，是的话进行分割拼接
+                roiImg=get_split_merge(roiImg);
+            //    cv::imwrite("roi.jpg",roiImg);
+            cv::resize(roiImg,roiImg,cv::Size(size.width,size.height));
+            cv::Mat pr_img =roiImg;
+            // std::cout << "blob image" << std::endl;
+            
+            blobFromImage_plate(pr_img,mean_value,std_value,blob_rec);
+            recModel.doInference(blob_rec,pr_img.size());
+            // doInference(*recModel.context, blob_rec, prob_rec, output_size_rec, pr_img.size(),plate_rec_input_name,plate_rec_out_name);
+            auto plate_number = decode_outputs(recModel.prob,recModel.output_size);
+            auto plate_pingyin= decode_outputs_pingyin(recModel.prob,recModel.output_size);
+           std::cout<<plate_number<<" ";
+           return plate_pingyin;
+ }
 
 
 int main(int argc, char** argv) 
@@ -580,6 +591,7 @@ int main(int argc, char** argv)
    //检测模型参数
     std::string detect_input_name = "input";// 检测 模型 onnx 输入  名字
     std::string detect_output_name= "output";//检测模型 onnx 输出  名字
+  
 
   //识别模型参数//
     std::string rec_input_name = "images"; //识别模型 onnx 输入  名字
@@ -587,18 +599,21 @@ int main(int argc, char** argv)
     int plate_rec_input_w = 168,plate_rec_input_h =48;  
     float mean_value=0.588,std_value=0.193;
     cv::Point2f order_rect[4];
-  //识别模型参数//
+  //////////////
 
     trtModel detectModel(argv[1],detect_input_name,detect_output_name);  //初始化检测模型
     trtModel recModel(argv[2],rec_input_name,rec_out_name);             //初始化识别模型
 
-    float* blob_detect=new float[INPUT_H*INPUT_W*3];
-    float* blob_rec;
+    float* blob_detect=new float[INPUT_H*INPUT_W*3];   //检测输入 
+    float* blob_rec=new float[plate_rec_input_h*plate_rec_input_w*3];                                   //识别输入
 
+   //遍历文件
     std::string input_image_path=argv[3];
     std::vector<std::string> imagList;
     std::vector<std::string>fileType{"jpg","png"};
     readFileList(const_cast<char *>(argv[3]),imagList,fileType);
+
+
     double pre_pressin_time=0;
     double forword_sumTime = 0;
     int index= 0;
@@ -606,70 +621,31 @@ int main(int argc, char** argv)
     {
         std::cout<<input_image_path<<" ";
         cv::Mat img = cv::imread(input_image_path);
-        
-        int top=0,left=0;
-        float scale=0;
-        auto pre_time_b=cv::getTickCount();
-        pre_pressing(img,top,left,scale,blob_detect);  //检测前处理
-        auto pre_time_e=cv::getTickCount();
-        auto time_gap_pre = (pre_time_e-pre_time_b)/cv::getTickFrequency()*1000;
-        
-       if (index)
-       pre_pressin_time+=time_gap_pre;
-        
-        auto time_b = cv::getTickCount();
-        // detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
-         doInference(*(detectModel.context), blob_detect, detectModel.prob, detectModel.output_size, cv::Size(INPUT_W,INPUT_H),INPUT_BLOB_NAME,OUTPUT_BLOB_NAME);
-        auto time_e = cv::getTickCount(); 
-       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
-        std::cout<<time_gap<<"ms ";
-       if (index)
-       forword_sumTime+=time_gap;
+        auto time_b=cv::getTickCount();
         std::vector<Object> objects;
-        decode_outputs(detectModel.prob, objects, scale, img.cols, img.rows,detectModel.OUTPUT_CANDIDATES,top,left);
-        
+       detect(detectModel,img,blob_detect,index,objects);//获取检测结果
+ 
         for (int i = 0; i<objects.size(); i++)
         {
             cv::rectangle(img, objects[i].rect, cv::Scalar(0,255,0), 2);
-            for (int j= 0; j<4; j++)
-            {
-            cv::Scalar color = cv::Scalar(color_list[j][0], color_list[j][1], color_list[j][2]);
-            cv::circle(img,cv::Point(objects[i].landmarks[2*j], objects[i].landmarks[2*j+1]),5,color,-1);
-            order_rect[j]=cv::Point(objects[i].landmarks[2*j],objects[i].landmarks[2*j+1]);
-            }
-            
-           cv::Mat roiImg = getTransForm(img,order_rect);  //根据关键点进行透视变换
-           int label = objects[i].label;
-           if (label)             //判断是否双层车牌，是的话进行分割拼接
-                roiImg=get_split_merge(roiImg);
-            //    cv::imwrite("roi.jpg",roiImg);
-            cv::resize(roiImg,roiImg,cv::Size(plate_rec_input_w,plate_rec_input_h));
-            cv::Mat pr_img =roiImg;
-            // std::cout << "blob image" << std::endl;
-            
-            blob_rec = blobFromImage_plate(pr_img,mean_value,std_value);
-            recModel.doInference(blob_rec,pr_img.size());
-            // doInference(*recModel.context, blob_rec, prob_rec, output_size_rec, pr_img.size(),plate_rec_input_name,plate_rec_out_name);
-            auto plate_number = decode_outputs(recModel.prob,recModel.output_size);
-            auto plate_number_pinyin= decode_outputs_pingyin(recModel.prob,recModel.output_size);
-            
+            // std::string plate_number_pingyin;
+            auto plate_number_pinyin = get_plate_result(objects[i],img, order_rect,recModel,blob_rec,cv::Size(plate_rec_input_w,plate_rec_input_h),mean_value,std_value);
             cv::Point origin; 
             origin.x = objects[i].rect.x;
             origin.y = objects[i].rect.y;
             cv::putText(img, plate_number_pinyin, origin, cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 255, 0), 2, 8, 0);
-            std::cout<<plate_number<<" ";
-       
         }
        std::cout<<std::endl;
-    //    auto time_e = cv::getTickCount(); 
-    //    auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
-    //    if (index)
-    //    forword_sumTime+=time_gap;
+       auto time_e = cv::getTickCount(); 
+       auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
+       if (index)
+       forword_sumTime+=time_gap;
        index+=1;
+    // cv::imwrite("out.jpg",img);
     }
 
-std::cout<<"detect forward平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
-std::cout<<"前处理平均时间: "<<pre_pressin_time/(imagList.size()-1)<<" ms"<<std::endl;
+// std::cout<<"detect forward平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
+std::cout<<"单张处理平均时间: "<<forword_sumTime/(imagList.size()-1)<<" ms"<<std::endl;
 //    cv::imwrite("out.jpg",img);
   delete [] blob_rec;
    delete [] blob_detect;
