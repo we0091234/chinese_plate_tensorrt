@@ -13,7 +13,7 @@
 #include "preprocess.h"
 #include "postprocess.h"
 #define MAX_IMAGE_INPUT_SIZE_THRESH 5000 * 5000
-#define MAX_OBJECTS 100
+#define MAX_OBJECTS 1024
 #define NUM_BOX_ELEMENT 15
 struct affine_matrix
 {
