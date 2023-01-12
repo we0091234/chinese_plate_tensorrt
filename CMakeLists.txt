@@ -3,7 +3,8 @@ project(plate_rec)
 
 add_definitions(-std=c++11)
 add_definitions(-w)
-option(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
+find_package(CUDA REQUIRED)
+# option(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_BUILD_TYPE Release)
 # set(CMAKE_BUILD_TYPE Debug)
@@ -24,7 +25,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 #onnx2trt
 add_subdirectory(${PROJECT_SOURCE_DIR}/onnx2trt)
 
-add_executable(plate_rec ${PROJECT_SOURCE_DIR}/detect_rec_plate.cpp ${PROJECT_SOURCE_DIR}/utils.cpp)
+cuda_add_executable(plate_rec detect_rec_plate_cuda.cpp utils.cpp postprocess.cu preprocess.cu)
 
 target_link_libraries(plate_rec nvinfer)
 target_link_libraries(plate_rec cudart)

@@ -510,8 +510,8 @@ class trtModel
 
         // DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
         CHECK(cudaMemcpyAsync(buffers[inputIndex], input, 3 * input_shape.height * input_shape.width * sizeof(float), cudaMemcpyHostToDevice, stream));
-        context->enqueue(1, buffers, stream, nullptr);
-        // context.enqueueV2( buffers, stream, nullptr);
+        // context->enqueue(1, buffers, stream, nullptr);
+        context->enqueueV2( buffers, stream, nullptr);
         CHECK(cudaMemcpyAsync(prob, buffers[outputIndex], output_size * sizeof(float), cudaMemcpyDeviceToHost, stream));
         cudaStreamSynchronize(stream);
 
@@ -533,25 +533,27 @@ void pre_pressing(cv::Mat &img,int &top,int &left,float &scale,float *blob_detec
 
 void  detect(trtModel &detectModel,cv::Mat &img,float *blob_detect,int index, std::vector<Object> &objects)  //输出检测结果
  {
+      auto time_b = cv::getTickCount();
       int top=0,left=0;
         float scale=0;
         auto pre_time_b=cv::getTickCount();
         pre_pressing(img,top,left,scale,blob_detect);  //检测前处理
         auto pre_time_e=cv::getTickCount();
         auto time_gap_pre = (pre_time_e-pre_time_b)/cv::getTickFrequency()*1000;
-        
     //    if (index)
     //    pre_pressin_time+=time_gap_pre;
         
-        auto time_b = cv::getTickCount();
-        detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
-        auto time_e = cv::getTickCount(); 
+       auto time_e = cv::getTickCount(); 
        auto time_gap = (time_e-time_b)/cv::getTickFrequency()*1000;
-        std::cout<<time_gap<<"ms ";
+       std::cout<<time_gap<<"ms ";
+        detectModel.doInference(blob_detect,cv::Size(INPUT_W,INPUT_H));
+        
+        
     //    if (index)
     //    forword_sumTime+=time_gap;
-       
+      
         decode_outputs(detectModel.prob, objects, scale, img.cols, img.rows,detectModel.OUTPUT_CANDIDATES,top,left);
+     
     //  return objects;
  }
 
@@ -620,8 +622,9 @@ int main(int argc, char** argv)
     for (auto &input_image_path:imagList) 
     {
         std::cout<<input_image_path<<" ";
+         
         cv::Mat img = cv::imread(input_image_path);
-        auto time_b=cv::getTickCount();
+       auto time_b=cv::getTickCount();
         std::vector<Object> objects;
        detect(detectModel,img,blob_detect,index,objects);//获取检测结果
  
@@ -629,7 +632,9 @@ int main(int argc, char** argv)
         {
             cv::rectangle(img, objects[i].rect, cv::Scalar(0,255,0), 2);
             // std::string plate_number_pingyin;
+             
             auto plate_number_pinyin = get_plate_result(objects[i],img, order_rect,recModel,blob_rec,cv::Size(plate_rec_input_w,plate_rec_input_h),mean_value,std_value);
+
             cv::Point origin; 
             origin.x = objects[i].rect.x;
             origin.y = objects[i].rect.y;
