@@ -415,6 +415,7 @@ int main(int argc, char** argv) {
              box.x2 =  decode_ptr_host[basic_pos+2];
              box.y2 =  decode_ptr_host[basic_pos+3];
              box.score=decode_ptr_host[basic_pos+4];
+             box.label = decode_ptr_host[basic_pos+5];
              int landmark_pos = basic_pos+7;
              for (int id = 0; id<4; id+=1)
              {
