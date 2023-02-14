@@ -36,3 +36,4 @@
    ./plate_detect_rec ./plate_detect.trt  ./plate_rec.trt ../test_imgs
    ```
    结果显示在控制台
+   ![Image ](example/6.jpg)
