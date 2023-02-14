@@ -8,6 +8,8 @@ ut/
 runs/
 .vscode/
 build/
+extra/
+color_test/
 # 不忽略下面指定的文件类型
 !*.cpp
 !*.h

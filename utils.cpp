@@ -1,4 +1,57 @@
 #include "utils.hpp"
+
+float getNorm2(float x,float y)
+{
+    return sqrt(x*x+y*y);
+}
+
+cv::Mat getTransForm(cv::Mat &src_img, cv::Point2f  order_rect[4]) //透视变换
+{cv::Point2f w1=order_rect[0]-order_rect[1];
+            cv::Point2f w2=order_rect[2]-order_rect[3];
+            auto width1 = getNorm2(w1.x,w1.y);
+            auto width2 = getNorm2(w2.x,w2.y);
+            auto maxWidth = std::max(width1,width2);
+
+            cv::Point2f h1=order_rect[0]-order_rect[3];
+            cv::Point2f h2=order_rect[1]-order_rect[2];
+            auto height1 = getNorm2(h1.x,h1.y);
+            auto height2 = getNorm2(h2.x,h2.y);
+            auto maxHeight = std::max(height1,height2);
+            //  透视变换
+            std::vector<cv::Point2f> pts_ori(4);
+            std::vector<cv::Point2f> pts_std(4);
+
+            pts_ori[0]=order_rect[0];
+            pts_ori[1]=order_rect[1];
+            pts_ori[2]=order_rect[2];
+            pts_ori[3]=order_rect[3];
+
+            pts_std[0]=cv::Point2f(0,0);
+            pts_std[1]=cv::Point2f(maxWidth,0);
+            pts_std[2]=cv::Point2f(maxWidth,maxHeight);
+            pts_std[3]=cv::Point2f(0,maxHeight);
+
+            cv::Mat M = cv::getPerspectiveTransform(pts_ori,pts_std);
+            cv:: Mat dstimg;
+            cv::warpPerspective(src_img,dstimg,M,cv::Size(maxWidth,maxHeight));
+            return dstimg;
+}
+ 
+cv::Mat get_split_merge(cv::Mat &img)   //双层车牌 分割 拼接
+{
+    cv::Rect  upper_rect_area = cv::Rect(0,0,img.cols,int(5.0/12*img.rows));
+    cv::Rect  lower_rect_area = cv::Rect(0,int(1.0/3*img.rows),img.cols,img.rows-int(1.0/3*img.rows));
+    cv::Mat img_upper = img(upper_rect_area);
+    cv::Mat img_lower =img(lower_rect_area);
+    cv::resize(img_upper,img_upper,img_lower.size());
+    cv::Mat out(img_lower.rows,img_lower.cols+img_upper.cols, CV_8UC3, cv::Scalar(114, 114, 114));
+    img_upper.copyTo(out(cv::Rect(0,0,img_upper.cols,img_upper.rows)));
+    img_lower.copyTo(out(cv::Rect(img_upper.cols,0,img_lower.cols,img_lower.rows)));
+
+    return out;
+}
+
+
 std::string getHouZhui(std::string fileName)
 {
     //    std::string fileName="/home/xiaolei/23.jpg";

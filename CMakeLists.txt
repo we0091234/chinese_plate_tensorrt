@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(plate_rec)
+project(plate_detect_rec)
 
 add_definitions(-std=c++11)
 add_definitions(-w)
@@ -25,10 +25,11 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 #onnx2trt
 add_subdirectory(${PROJECT_SOURCE_DIR}/onnx2trt)
 
-cuda_add_executable(plate_rec detect_rec_plate_cuda.cpp utils.cpp postprocess.cu preprocess.cu)
+# cuda_add_executable(plate_detect_rec detect_rec_plate_cuda.cpp utils.cpp postprocess.cu preprocess.cu)
+cuda_add_executable(plate_detect_rec  utils.cpp plate_detect.cpp plate_rec.cpp main.cpp postprocess.cu preprocess.cu)
 
-target_link_libraries(plate_rec nvinfer)
-target_link_libraries(plate_rec cudart)
-target_link_libraries(plate_rec nvonnxparser)
-target_link_libraries(plate_rec ${OpenCV_LIBS})
+target_link_libraries(plate_detect_rec nvinfer)
+target_link_libraries(plate_detect_rec cudart)
+target_link_libraries(plate_detect_rec nvonnxparser)
+target_link_libraries(plate_detect_rec ${OpenCV_LIBS})
 add_definitions(-O2)

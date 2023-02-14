@@ -10,6 +10,19 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <opencv2/opencv.hpp>
+
+#define CHECK(status) \
+    do\
+    {\
+        auto ret = (status);\
+        if (ret != 0)\
+        {\
+            std::cerr << "Cuda failure: " << ret << std::endl;\
+            abort();\
+        }\
+    } while (0)
+
+
 struct boundingBox
 {
     float x;
@@ -25,6 +38,9 @@ int readFileList(char *basePath,std::vector<std::string> &fileList,std::vector<s
  bool cmpBox(boundingBox b1, boundingBox b2);
 float getIou(boundingBox b1,boundingBox b2) ;
 void myNms(std::vector<boundingBox>&bboxes,float score);
+float getNorm2(float x,float y);
+cv::Mat getTransForm(cv::Mat &src_img, cv::Point2f  order_rect[4]); //透视变换
+cv::Mat get_split_merge(cv::Mat &img) ;
 
 
 
