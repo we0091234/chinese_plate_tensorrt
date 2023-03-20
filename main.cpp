@@ -1,6 +1,7 @@
 #include "plate_rec.h"
 #include "plate_detect.h"
 #include "utils.hpp"
+#include "cuda_runtime.h"
 // #include <opencv2/freetype.hpp>
 static Logger gLogger;
 
@@ -60,7 +61,7 @@ int main(int argc,char **argv)
      {
 
             cv::rectangle(img,cv::Point(bboxes[i].x1,bboxes[i].y1),cv::Point(bboxes[i].x2,bboxes[i].y2),cv::Scalar(0,255,0));
-          
+            
             std::string plate_no;
             std::string plate_color;
             for (int j= 0; j<4; j++)
